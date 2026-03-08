@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:16
+    container_name: authcrud-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: authcrud-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+      redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD";
+      else
+      redis-server --appendonly yes;
+      fi'
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: authcrud-app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SECURITY_JWT_SECRET: ${SECURITY_JWT_SECRET}
+      SECURITY_JWT_EXPIRATION_MS: ${SECURITY_JWT_EXPIRATION_MS}
+      SECURITY_JWT_REFRESH_EXPIRATION_MS: ${SECURITY_JWT_REFRESH_EXPIRATION_MS}
+      SECURITY_RATE_LIMIT_LOGIN_MAX_ATTEMPTS: ${SECURITY_RATE_LIMIT_LOGIN_MAX_ATTEMPTS}
+      SECURITY_RATE_LIMIT_LOGIN_WINDOW_SECONDS: ${SECURITY_RATE_LIMIT_LOGIN_WINDOW_SECONDS}
+      SECURITY_BRUTEFORCE_MAX_FAILURES: ${SECURITY_BRUTEFORCE_MAX_FAILURES}
+      SECURITY_BRUTEFORCE_WINDOW_SECONDS: ${SECURITY_BRUTEFORCE_WINDOW_SECONDS}
+      SECURITY_BRUTEFORCE_LOCK_SECONDS: ${SECURITY_BRUTEFORCE_LOCK_SECONDS}
+    ports:
+      - "8081:8081"
+
+volumes:
+  postgres_data:
