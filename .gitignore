@@ -29,3 +29,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+
+node_modules/
+dist/
+build/

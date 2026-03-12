@@ -140,6 +140,23 @@ services:
     ports:
       - "8083:8083"
 
+  search-service:
+    build: ./search-service
+    container_name: authcrud-search-service
+    depends_on:
+      todo-db:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8084
+      DB_HOST: todo-db
+      DB_PORT: 5432
+      DB_NAME: ${TODO_DB_NAME}
+      DB_USERNAME: ${TODO_DB_USERNAME}
+      DB_PASSWORD: ${TODO_DB_PASSWORD}
+      JWT_SECRET: ${SECURITY_JWT_SECRET}
+    ports:
+      - "8084:8084"
+
   gateway:
     build: ./gateway
     container_name: authcrud-gateway

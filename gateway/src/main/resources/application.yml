@@ -17,6 +17,14 @@ spring:
           uri: ${TODO_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/todos/**
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/notifications/**
+        - id: search-service  
+          uri: ${SEARCH_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/search/**
 
 management:
   endpoints:
