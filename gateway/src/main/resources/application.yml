@@ -14,7 +14,7 @@ spring:
           predicates:
             - Path=/api/auth/**
         - id: todo-service
-          uri: ${TODO_SERVICE_URL:http://localhost:8081}
+          uri: ${TODO_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/todos/**
 
