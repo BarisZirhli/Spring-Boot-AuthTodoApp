@@ -1,4 +1,31 @@
 services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: authcrud-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.0
+    container_name: authcrud-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+
   auth-db:
     image: postgres:16
     container_name: authcrud-auth-db
@@ -84,6 +111,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
       SERVER_PORT: 8081
       DB_HOST: auth-db
@@ -102,6 +131,11 @@ services:
       SECURITY_BRUTEFORCE_MAX_FAILURES: ${SECURITY_BRUTEFORCE_MAX_FAILURES}
       SECURITY_BRUTEFORCE_WINDOW_SECONDS: ${SECURITY_BRUTEFORCE_WINDOW_SECONDS}
       SECURITY_BRUTEFORCE_LOCK_SECONDS: ${SECURITY_BRUTEFORCE_LOCK_SECONDS}
+      OTEL_SERVICE_NAME: auth-service
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8081:8081"
 
@@ -113,6 +147,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
       SERVER_PORT: 8082
       DB_HOST: todo-db
@@ -124,6 +160,11 @@ services:
       SECURITY_JWT_EXPIRATION_MS: ${SECURITY_JWT_EXPIRATION_MS}
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       TODO_EVENTS_TOPIC: ${TODO_EVENTS_TOPIC:-todo.events}
+      OTEL_SERVICE_NAME: todo-service
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8082:8082"
 
@@ -133,10 +174,17 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
       SERVER_PORT: 8083
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       TODO_EVENTS_TOPIC: ${TODO_EVENTS_TOPIC:-todo.events}
+      OTEL_SERVICE_NAME: notification-service
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8083:8083"
 
@@ -146,6 +194,12 @@ services:
     depends_on:
       todo-db:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
       SERVER_PORT: 8084
       DB_HOST: todo-db
@@ -154,6 +208,15 @@ services:
       DB_USERNAME: ${TODO_DB_USERNAME}
       DB_PASSWORD: ${TODO_DB_PASSWORD}
       JWT_SECRET: ${SECURITY_JWT_SECRET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      TODO_EVENTS_TOPIC: ${TODO_EVENTS_TOPIC:-todo.events}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-todos}
+      SEARCH_SYNC_ON_STARTUP: ${SEARCH_SYNC_ON_STARTUP:-true}
+      SEARCH_SYNC_MODE: ${SEARCH_SYNC_MODE:-full}
+      OTEL_SERVICE_NAME: search-service
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     ports:
       - "8084:8084"
 
@@ -163,13 +226,24 @@ services:
     depends_on:
       - auth-service
       - todo-service
+      - notification-service
+      - search-service
+      - jaeger
     environment:
       GATEWAY_PORT: 8080
       AUTH_SERVICE_URL: http://auth-service:8081
       TODO_SERVICE_URL: http://todo-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8083
+      SEARCH_SERVICE_URL: http://search-service:8084
+      OTEL_SERVICE_NAME: gateway
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8080:8080"
 
 volumes:
   auth_postgres_data:
   todo_postgres_data:
+  elasticsearch_data:

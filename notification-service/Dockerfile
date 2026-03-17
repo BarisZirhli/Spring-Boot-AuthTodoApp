@@ -11,6 +11,9 @@ WORKDIR /app
 
 COPY --from=build /app/target/notification-service-0.0.1-SNAPSHOT.jar app.jar
 
+ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar /otel/opentelemetry-javaagent.jar
+ENV JAVA_TOOL_OPTIONS="-javaagent:/otel/opentelemetry-javaagent.jar"
+
 EXPOSE 8083
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
